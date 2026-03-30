@@ -8,6 +8,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "travel_ai.db")
 
 
+# 🔧 FUNCIÓN CENTRALIZADA DE CONEXIÓN
+def get_db():
+    return sqlite3.connect(
+        DB_PATH,
+        check_same_thread=False,
+        timeout=10
+    )
+
+
 # 🔐 REGISTRO
 @router.post("/registro")
 def registro(email: str, password: str):
@@ -15,8 +24,10 @@ def registro(email: str, password: str):
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email y contraseña obligatorios")
 
+    conexion = None
+
     try:
-        conexion = sqlite3.connect(DB_PATH)
+        conexion = get_db()
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -25,7 +36,6 @@ def registro(email: str, password: str):
         )
 
         conexion.commit()
-        conexion.close()
 
         return {"mensaje": "Usuario creado correctamente"}
 
@@ -35,6 +45,10 @@ def registro(email: str, password: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    finally:
+        if conexion:
+            conexion.close()
+
 
 # 🔐 LOGIN
 @router.post("/login")
@@ -43,8 +57,10 @@ def login(email: str, password: str):
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email y contraseña obligatorios")
 
+    conexion = None
+
     try:
-        conexion = sqlite3.connect(DB_PATH)
+        conexion = get_db()
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -53,7 +69,6 @@ def login(email: str, password: str):
         )
 
         usuario = cursor.fetchone()
-        conexion.close()
 
         if not usuario:
             raise HTTPException(status_code=401, detail="Credenciales incorrectas")
@@ -70,6 +85,10 @@ def login(email: str, password: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    finally:
+        if conexion:
+            conexion.close()
+
 
 # 🚀 UPGRADE A PRO
 @router.post("/upgrade")
@@ -78,8 +97,10 @@ def upgrade(email: str):
     if not email:
         raise HTTPException(status_code=400, detail="Email requerido")
 
+    conexion = None
+
     try:
-        conexion = sqlite3.connect(DB_PATH)
+        conexion = get_db()
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -88,12 +109,15 @@ def upgrade(email: str):
         )
 
         conexion.commit()
-        conexion.close()
 
         return {"mensaje": "Usuario actualizado a PRO"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # 👤 PERFIL USUARIO
@@ -103,8 +127,10 @@ def perfil(email: str):
     if not email:
         raise HTTPException(status_code=400, detail="Email requerido")
 
+    conexion = None
+
     try:
-        conexion = sqlite3.connect(DB_PATH)
+        conexion = get_db()
         cursor = conexion.cursor()
 
         # 👉 Obtener plan
@@ -124,8 +150,6 @@ def perfil(email: str):
         )
         uso = cursor.fetchone()
 
-        conexion.close()
-
         consultas = uso[0] if uso else 0
 
         return {
@@ -136,3 +160,7 @@ def perfil(email: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        if conexion:
+            conexion.close()
