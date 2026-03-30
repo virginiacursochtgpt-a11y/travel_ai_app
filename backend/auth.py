@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import time
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
@@ -8,13 +9,29 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "travel_ai.db")
 
 
-# 🔧 FUNCIÓN CENTRALIZADA DE CONEXIÓN
+# 🔧 CONEXIÓN CENTRALIZADA (WAL)
 def get_db():
-    return sqlite3.connect(
+    conexion = sqlite3.connect(
         DB_PATH,
         check_same_thread=False,
-        timeout=10
+        timeout=30
     )
+    conexion.execute("PRAGMA journal_mode=WAL;")
+    conexion.execute("PRAGMA synchronous=NORMAL;")
+    return conexion
+
+
+# 🔁 RETRY PARA BLOQUEOS
+def ejecutar_con_retry(func, retries=5):
+    for _ in range(retries):
+        try:
+            return func()
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e):
+                time.sleep(0.5)
+            else:
+                raise
+    raise HTTPException(status_code=500, detail="Base de datos bloqueada")
 
 
 # 🔐 REGISTRO
@@ -24,9 +41,7 @@ def registro(email: str, password: str):
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email y contraseña obligatorios")
 
-    conexion = None
-
-    try:
+    def operacion():
         conexion = get_db()
         cursor = conexion.cursor()
 
@@ -36,18 +51,14 @@ def registro(email: str, password: str):
         )
 
         conexion.commit()
+        conexion.close()
 
+    try:
+        ejecutar_con_retry(operacion)
         return {"mensaje": "Usuario creado correctamente"}
 
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=400, detail="El usuario ya existe")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        if conexion:
-            conexion.close()
 
 
 # 🔐 LOGIN
@@ -97,9 +108,7 @@ def upgrade(email: str):
     if not email:
         raise HTTPException(status_code=400, detail="Email requerido")
 
-    conexion = None
-
-    try:
+    def operacion():
         conexion = get_db()
         cursor = conexion.cursor()
 
@@ -109,15 +118,14 @@ def upgrade(email: str):
         )
 
         conexion.commit()
+        conexion.close()
 
+    try:
+        ejecutar_con_retry(operacion)
         return {"mensaje": "Usuario actualizado a PRO"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        if conexion:
-            conexion.close()
 
 
 # 👤 PERFIL USUARIO
@@ -133,7 +141,6 @@ def perfil(email: str):
         conexion = get_db()
         cursor = conexion.cursor()
 
-        # 👉 Obtener plan
         cursor.execute(
             "SELECT plan FROM usuarios WHERE email=?",
             (email,)
@@ -143,7 +150,6 @@ def perfil(email: str):
         if not usuario:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        # 👉 Obtener uso
         cursor.execute(
             "SELECT consultas FROM uso WHERE email=?",
             (email,)
