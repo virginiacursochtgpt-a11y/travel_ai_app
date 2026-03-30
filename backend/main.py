@@ -9,7 +9,7 @@ from backend.uso import obtener_uso, incrementar_uso
 import sqlite3
 import os
 
-# 👉 Ruta DB
+# 👉 Ruta DB (IMPORTANTE para Render)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "..", "travel_ai.db")
 
@@ -21,7 +21,7 @@ crear_base_datos()
 # 👉 Rutas de autenticación
 app.include_router(auth_router)
 
-# 👉 CORS
+# 👉 CORS (permite frontend externo)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,11 +53,11 @@ def obtener_plan(email):
 
 # 👉 Endpoint SaaS con control de uso
 @app.get("/recomendar")
-def recomendar(presupuesto: int, tipo: str, email: str):
+def recomendar(presupuesto: int, tipo: str, email: str = "demo@demo.com"):
 
     plan = obtener_plan(email)
 
-    # 👉 Si es FREE, limitar
+    # 👉 Usuario FREE (limitado)
     if plan == "free":
         uso_actual = obtener_uso(email)
 
