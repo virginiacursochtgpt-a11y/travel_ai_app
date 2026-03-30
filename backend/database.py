@@ -7,7 +7,11 @@ DB_PATH = os.path.join(BASE_DIR, "travel_ai.db")
 
 
 def crear_base_datos():
-    conexion = sqlite3.connect(DB_PATH)
+    conexion = sqlite3.connect(
+        DB_PATH,
+        check_same_thread=False,
+        timeout=10
+    )
     cursor = conexion.cursor()
 
     # 👉 Tabla de usuarios
